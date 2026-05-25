@@ -503,21 +503,22 @@ tr:hover{
             Gửi Yêu Cầu
         </button>
 
-        <button onclick="showTab('requests')">
-            Duyệt Yêu Cầu
-        </button>
+        <<button id="btnRequests"
+style="display:none;" onclick="showTab('requests')">
+    Duyệt Yêu Cầu
+</button>
 
         <button onclick="showTab('analytics')">
             Thống Kê
         </button>
 
-        <button onclick="showTab('logs')">
-            Nhật Ký
-        </button>
+<button id="btnLogs" style="display:none;" onclick="showTab('logs')">
+    Nhật Ký
+</button>
 
-        <button onclick="showTab('settings')">
-            Cài Đặt
-        </button>
+<button id="btnSettings" style="display:none;" onclick="showTab('settings')">
+    Cài Đặt
+</button>
 
         <button onclick="showTab('adminLogin')">
             Admin Login
@@ -969,6 +970,9 @@ function adminLogin(){
         document.getElementById(
         "addPersonnelBtn"
         ).style.display = "block";
+document.getElementById("btnRequests").style.display = "block";
+document.getElementById("btnLogs").style.display = "block";
+document.getElementById("btnSettings").style.display = "block";
 
         alert(
         " đăng nhập thành công!"
