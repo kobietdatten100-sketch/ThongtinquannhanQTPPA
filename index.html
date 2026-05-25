@@ -482,7 +482,6 @@ tr:hover{
 </head>
 
 <body>
-<div class="rainbow-spinner">SECURITY LEVEL : INTERNAL</div>
 
 <div class="sidebar">
 
@@ -860,8 +859,8 @@ tr:hover{
 
             <br>
 
-            <p id="combatCount">
-                Trực chiến : 0
+            <p id="inactive">
+                Nghĩ phép : 0
             </p>
 
         </div>
@@ -912,7 +911,7 @@ tr:hover{
 
     <div class="footer">
 
-        © 2026 THIEN DEFENSE SECURITY SYSTEM
+        © 2026 THIEN SECURITY SYSTEM
 
     </div>
 
@@ -1100,11 +1099,11 @@ function renderPersonnel(){
 
         if(
         p.status ===
-        "Trực Chiến"
+        "Nghĩ phép"
         ){
 
             statusClass =
-            "online";
+            "inactive";
         }
 
         row.innerHTML = `
@@ -1277,10 +1276,10 @@ function updateAnalytics(){
 
         if(
         p.status ===
-        "Trực Chiến"
+        "Nghĩ Phép"
         ){
 
-            combat++;
+            Time off++;
         }
     });
 
@@ -1292,7 +1291,7 @@ function updateAnalytics(){
     document.getElementById(
     "combatCount"
     ).innerHTML =
-    "Trực chiến : " + combat;
+    "Nghĩ phép : " + Time Off;
 }
 
 /* LOGS */
