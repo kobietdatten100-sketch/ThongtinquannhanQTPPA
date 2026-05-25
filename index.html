@@ -703,7 +703,7 @@ tr:hover{
 
             <h2>Administrator Login</h2>
 
-            <input
+            <input 
             type="password"
             id="adminPassword"
             class="search-box"
@@ -753,7 +753,7 @@ tr:hover{
 
                 <option>Hoạt Động</option>
                 <option>Ngừng Hoạt Động</option>
-                <option>Trực Chiến</option>
+                <option>Nghĩ phép</option>
 
             </select>
 
@@ -859,7 +859,7 @@ tr:hover{
 
             <br>
 
-            <p id="inactive">
+            <p id="Inactive">
                 Nghĩ phép : 0
             </p>
 
@@ -1103,7 +1103,7 @@ function renderPersonnel(){
         ){
 
             statusClass =
-            "inactive";
+            "Inactive";
         }
 
         row.innerHTML = `
@@ -1262,7 +1262,7 @@ function updateAnalytics(){
     )) || [];
 
     let active = 0;
-    let combat = 0;
+    let Inactive = 0;
 
     data.forEach(p => {
 
@@ -1279,7 +1279,7 @@ function updateAnalytics(){
         "Nghĩ Phép"
         ){
 
-            Time off++;
+            Inactive++;
         }
     });
 
@@ -1291,7 +1291,7 @@ function updateAnalytics(){
     document.getElementById(
     "combatCount"
     ).innerHTML =
-    "Nghĩ phép : " + Time Off;
+    "Nghĩ phép : " + Inactive;
 }
 
 /* LOGS */
