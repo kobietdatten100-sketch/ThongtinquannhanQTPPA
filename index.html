@@ -9,7 +9,70 @@
 <title>KEN DEFENSE SYSTEM</title>
 
 <style>
+/* LED BORDER EFFECT */
 
+.led-border{
+
+    position:relative;
+
+    overflow:hidden;
+}
+
+.led-border::before{
+
+    content:"";
+
+    position:absolute;
+
+    top:-2px;
+    left:-2px;
+
+    width:calc(100% + 4px);
+    height:calc(100% + 4px);
+
+    background:linear-gradient(
+        90deg,
+        #00f0ff,
+        #0066ff,
+        #00f0ff,
+        #00ff99,
+        #00f0ff
+    );
+
+    background-size:400%;
+
+    border-radius:22px;
+
+    z-index:-1;
+
+    animation:ledMove 5s linear infinite;
+}
+
+.led-border::after{
+
+    content:"";
+
+    position:absolute;
+
+    inset:2px;
+
+    background:#0f172a;
+
+    border-radius:20px;
+
+    z-index:-1;
+}
+
+@keyframes ledMove{
+
+    0%{
+        background-position:0% 50%;
+    }
+
+    100%{
+        background-position:400% 50%;
+    }
+}
 *{
     margin:0;
     padding:0;
@@ -89,6 +152,8 @@ body{
     font-size:15px;
 
     transition:0.3s;
+    position:relative;
+    overflow:hidden;
 }
 
 .menu button:hover{
@@ -98,6 +163,10 @@ body{
     color:black;
 
     transform:translateX(5px);
+    box-shadow:
+    0 0 10px #38bdf8,
+    0 0 20px #38bdf8,
+    0 0 40px #38bdf8;
 }
 
 /* MAIN */
@@ -539,7 +608,7 @@ style="display:none;" onclick="showTab('requests')">
 
 <div class="main">
 
-    <div class="topbar">
+    <div class="fancy-topbar led-border">
 
         <div>
 
