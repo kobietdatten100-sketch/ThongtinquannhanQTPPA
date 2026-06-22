@@ -8,41 +8,58 @@ const client = new Client({
     ]
 });
 
-// ================= VIRTUAL MONEY SYSTEM =================
-let balance = {};   // 💰 tiền ảo
-let daily = {};     // 🎁 cooldown daily
+// ================= MONEY SYSTEM =================
+let money = {};
+let cooldown = {};
 
 const START_COINS = 1000;
+const COOLDOWN_TIME = 2000;
 
-// tạo ví nếu chưa có
+// tạo ví
 function get(id) {
-    if (!balance[id]) balance[id] = START_COINS;
-    return balance[id];
+    if (!money[id]) money[id] = START_COINS;
+    return money[id];
 }
 
-// cộng trừ tiền
-function add(id, amount) {
-    if (!balance[id]) balance[id] = START_COINS;
-    balance[id] += amount;
-    if (balance[id] < 0) balance[id] = 0;
-    return balance[id];
+// cộng/trừ tiền
+function add(id, amt) {
+    if (!money[id]) money[id] = START_COINS;
+    money[id] += amt;
+    if (money[id] < 0) money[id] = 0;
+    return money[id];
+}
+
+// cooldown
+function canUse(id, cmd) {
+    let key = id + cmd;
+    let now = Date.now();
+
+    if (cooldown[key] && now - cooldown[key] < COOLDOWN_TIME) {
+        return false;
+    }
+
+    cooldown[key] = now;
+    return true;
 }
 
 // ================= UI =================
 function ui(title, desc) {
     return new EmbedBuilder()
-        .setTitle("🎰 CASINO VIRTUAL | " + title)
+        .setTitle("🎰 CASINO SYSTEM | " + title)
         .setDescription(desc)
         .setColor(0x00FFD5)
-        .setFooter({ text: "💎 Coin ảo system" });
+        .setFooter({ text: "💎 Virtual Coin System" });
+}
+
+function wait(ms) {
+    return new Promise(res => setTimeout(res, ms));
 }
 
 // ================= BOT =================
 client.on("ready", () => {
-    console.log("🎰 Casino Bot Online (Virtual Money)");
+    console.log("🎰 Casino Bot Online");
 });
 
-// ================= COMMAND =================
 client.on("messageCreate", async (msg) => {
     if (msg.author.bot) return;
 
@@ -50,10 +67,37 @@ client.on("messageCreate", async (msg) => {
     const cmd = args[0];
     const id = msg.author.id;
 
+    // ================= HELP =================
+    if (cmd === ".help") {
+        return msg.channel.send({
+            embeds: [
+                ui("HELP MENU",
+`💰 ECONOMY
+.bal → xem tiền
+.daily → nhận 500 coin (3h)
+.pay @user amount
+
+🎮 MINI GAMES
+.flip amount → 50/50 x2
+.slot amount → slot x2/x5
+.dice amount → xúc xắc
+.roulette amount → x3 hoặc mất
+.highlow amount → đoán số
+
+🏆 RANK
+.top → bảng xếp hạng
+
+⏳ SYSTEM
+Cooldown: 2 giây
+Thua = mất tiền cược`)
+            ]
+        });
+    }
+
     // ================= BAL =================
     if (cmd === ".bal") {
         return msg.channel.send({
-            embeds: [ui("BALANCE", `💰 Bạn có: **${get(id)} coin**`)]
+            embeds: [ui("BALANCE", `💰 Bạn có: ${get(id)} coin`)]
         });
     }
 
@@ -61,16 +105,16 @@ client.on("messageCreate", async (msg) => {
     if (cmd === ".daily") {
         let now = Date.now();
 
-        if (daily[id] && now - daily[id] < 3 * 60 * 60 * 1000) {
-            let left = Math.ceil((3 * 60 * 60 * 1000 - (now - daily[id])) / 60000);
-            return msg.reply(`⏳ Chờ ${left} phút nữa`);
+        if (cooldown["daily_" + id] && now - cooldown["daily_" + id] < 3 * 60 * 60 * 1000) {
+            let left = Math.ceil((3 * 60 * 60 * 1000 - (now - cooldown["daily_" + id])) / 60000);
+            return msg.reply("⏳ Chờ " + left + " phút");
         }
 
         add(id, 500);
-        daily[id] = now;
+        cooldown["daily_" + id] = now;
 
         return msg.channel.send({
-            embeds: [ui("DAILY", "🎁 +500 coin ảo")]
+            embeds: [ui("DAILY", "🎁 +500 coin")]
         });
     }
 
@@ -79,11 +123,8 @@ client.on("messageCreate", async (msg) => {
         let target = msg.mentions.users.first();
         let amount = parseInt(args[2]);
 
-        if (!target || !amount || amount <= 0)
-            return msg.reply("❌ .pay @user số tiền");
-
-        if (get(id) < amount)
-            return msg.reply("❌ Không đủ coin");
+        if (!target || !amount) return msg.reply("❌ .pay @user số tiền");
+        if (get(id) < amount) return msg.reply("❌ Không đủ coin");
 
         add(id, -amount);
         add(target.id, amount);
@@ -95,7 +136,7 @@ client.on("messageCreate", async (msg) => {
 
     // ================= TOP =================
     if (cmd === ".top") {
-        let sorted = Object.entries(balance)
+        let sorted = Object.entries(money)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 10);
 
@@ -108,9 +149,10 @@ client.on("messageCreate", async (msg) => {
         });
     }
 
-    // ================= FLIP 50/50 =================
+    // ================= FLIP =================
     if (cmd === ".flip") {
         let bet = parseInt(args[1]);
+        if (!canUse(id, ".flip")) return msg.reply("⏳ Cooldown");
         if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
         let win = Math.random() < 0.5;
@@ -125,7 +167,11 @@ client.on("messageCreate", async (msg) => {
     // ================= SLOT =================
     if (cmd === ".slot") {
         let bet = parseInt(args[1]);
+        if (!canUse(id, ".slot")) return msg.reply("⏳ Cooldown");
         if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+
+        let m = await msg.channel.send("🎰 Đang quay...");
+        await wait(2000);
 
         let s = ["🍒","🍋","💎","7️⃣"];
         let a = s[Math.floor(Math.random()*4)];
@@ -139,7 +185,7 @@ client.on("messageCreate", async (msg) => {
 
         add(id, win);
 
-        return msg.channel.send({
+        return m.edit({
             embeds: [ui("SLOT", `${a} | ${b} | ${c}\n💰 ${win}`)]
         });
     }
@@ -147,36 +193,59 @@ client.on("messageCreate", async (msg) => {
     // ================= DICE =================
     if (cmd === ".dice") {
         let bet = parseInt(args[1]);
+        if (!canUse(id, ".dice")) return msg.reply("⏳ Cooldown");
         if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
-        let win = Math.random() < 0.5 ? bet : -bet;
+        let m = await msg.channel.send("🎲 rolling...");
+        await wait(2000);
+
+        let roll = Math.floor(Math.random()*6)+1;
+        let win = roll >= 4 ? bet : -bet;
 
         add(id, win);
 
-        return msg.channel.send({
-            embeds: [ui("DICE", win > 0 ? "WIN x2" : "LOSE")]
+        return m.edit({
+            embeds: [ui("DICE", `🎲 ${roll}\n💰 ${win}`)]
         });
     }
 
-    // ================= TRIPLE =================
-    if (cmd === ".triple") {
+    // ================= ROULETTE =================
+    if (cmd === ".roulette") {
         let bet = parseInt(args[1]);
+        if (!canUse(id, ".roulette")) return msg.reply("⏳ Cooldown");
         if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+
+        let m = await msg.channel.send("🎡 spinning...");
+        await wait(2000);
 
         let r = Math.random();
 
-        if (r < 0.35) {
-            add(id, bet);
-            return msg.channel.send({ embeds: [ui("TRIPLE", "🟥 WIN x2")] });
-        }
-        else if (r < 0.70) {
-            add(id, bet);
-            return msg.channel.send({ embeds: [ui("TRIPLE", "⬛ WIN x2")] });
-        }
-        else {
+        if (r < 0.33) {
+            add(id, bet*3);
+            return m.edit({ embeds: [ui("ROULETTE", "⭐ WIN x3")] });
+        } else {
             add(id, -bet);
-            return msg.channel.send({ embeds: [ui("TRIPLE", "💀 LOSE")] });
+            return m.edit({ embeds: [ui("ROULETTE", "💀 LOSE")] });
         }
+    }
+
+    // ================= HIGHLOW =================
+    if (cmd === ".highlow") {
+        let bet = parseInt(args[1]);
+        if (!canUse(id, ".highlow")) return msg.reply("⏳ Cooldown");
+        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+
+        let m = await msg.channel.send("🎯 guessing...");
+        await wait(2000);
+
+        let num = Math.floor(Math.random()*10);
+        let win = num >= 5 ? bet : -bet;
+
+        add(id, win);
+
+        return m.edit({
+            embeds: [ui("HIGH/LOW", `🎯 ${num}\n💰 ${win}`)]
+        });
     }
 });
 
