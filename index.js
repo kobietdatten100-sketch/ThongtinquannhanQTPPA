@@ -44,15 +44,6 @@ function addMoney(id, amount) {
 
     return user.balance;
 }
-const db = new Database("casino.db");
-
-// ================= DB =================
-db.prepare(`
-CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY,
-    balance INTEGER DEFAULT 1000,
-    last_daily INTEGER DEFAULT 0
-)
 
 // ================= ADMIN CHECK =================
 function isAdmin(member) {
@@ -101,8 +92,7 @@ client.on("messageCreate", async (msg) => {
 
         addMoney(id, 500);
 
-        db.prepare("UPDATE users SET last_daily=? WHERE user_id=?")
-            .run(now, id);
+       
 
         return msg.channel.send({
             embeds: [ui("DAILY", "🎁 +500 coin")]
