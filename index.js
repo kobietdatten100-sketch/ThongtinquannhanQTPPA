@@ -1,5 +1,4 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
-const Database = require("better-sqlite3");
 
 const client = new Client({
     intents: [
@@ -8,63 +7,42 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ]
 });
-const fs = require("fs");
 
-let data = {};
+// ================= VIRTUAL MONEY SYSTEM =================
+let balance = {};   // 💰 tiền ảo
+let daily = {};     // 🎁 cooldown daily
 
-if (fs.existsSync("./data.json")) {
-    data = JSON.parse(fs.readFileSync("./data.json"));
+const START_COINS = 1000;
+
+// tạo ví nếu chưa có
+function get(id) {
+    if (!balance[id]) balance[id] = START_COINS;
+    return balance[id];
 }
 
-function saveData() {
-    fs.writeFileSync("./data.json", JSON.stringify(data, null, 2));
-}
-
-function getUser(id) {
-    if (!data[id]) {
-        data[id] = {
-            balance: 1000,
-            last_daily: 0
-        };
-        saveData();
-    }
-
-    return data[id];
-}
-
-function addMoney(id, amount) {
-    const user = getUser(id);
-
-    user.balance += amount;
-
-    if (user.balance < 0)
-        user.balance = 0;
-
-    saveData();
-
-    return user.balance;
-}
-
-// ================= ADMIN CHECK =================
-function isAdmin(member) {
-    return member.permissions.has("Administrator");
+// cộng trừ tiền
+function add(id, amount) {
+    if (!balance[id]) balance[id] = START_COINS;
+    balance[id] += amount;
+    if (balance[id] < 0) balance[id] = 0;
+    return balance[id];
 }
 
 // ================= UI =================
 function ui(title, desc) {
     return new EmbedBuilder()
-        .setTitle("🎰 CASINO ROYALE | " + title)
+        .setTitle("🎰 CASINO VIRTUAL | " + title)
         .setDescription(desc)
         .setColor(0x00FFD5)
-        .setFooter({ text: "💎 Coin System" });
+        .setFooter({ text: "💎 Coin ảo system" });
 }
 
-// ================= READY =================
+// ================= BOT =================
 client.on("ready", () => {
-    console.log("🎰 Casino Bot Ready!");
+    console.log("🎰 Casino Bot Online (Virtual Money)");
 });
 
-// ================= COMMANDS =================
+// ================= COMMAND =================
 client.on("messageCreate", async (msg) => {
     if (msg.author.bot) return;
 
@@ -74,28 +52,25 @@ client.on("messageCreate", async (msg) => {
 
     // ================= BAL =================
     if (cmd === ".bal") {
-        let u = getUser(id);
         return msg.channel.send({
-            embeds: [ui("BALANCE", `💰 ${u.balance} coin`)]
+            embeds: [ui("BALANCE", `💰 Bạn có: **${get(id)} coin**`)]
         });
     }
 
     // ================= DAILY =================
     if (cmd === ".daily") {
-        let u = getUser(id);
         let now = Date.now();
 
-        if (now - u.last_daily < 3 * 60 * 60 * 1000) {
-            let left = Math.ceil((3 * 60 * 60 * 1000 - (now - u.last_daily)) / 60000);
-            return msg.reply(`⏳ Chờ ${left} phút`);
+        if (daily[id] && now - daily[id] < 3 * 60 * 60 * 1000) {
+            let left = Math.ceil((3 * 60 * 60 * 1000 - (now - daily[id])) / 60000);
+            return msg.reply(`⏳ Chờ ${left} phút nữa`);
         }
 
-        addMoney(id, 500);
-
-       
+        add(id, 500);
+        daily[id] = now;
 
         return msg.channel.send({
-            embeds: [ui("DAILY", "🎁 +500 coin")]
+            embeds: [ui("DAILY", "🎁 +500 coin ảo")]
         });
     }
 
@@ -107,78 +82,50 @@ client.on("messageCreate", async (msg) => {
         if (!target || !amount || amount <= 0)
             return msg.reply("❌ .pay @user số tiền");
 
-        let sender = getUser(id);
-
-        if (sender.balance < amount)
+        if (get(id) < amount)
             return msg.reply("❌ Không đủ coin");
 
-        addMoney(id, -amount);
-        addMoney(target.id, amount);
+        add(id, -amount);
+        add(target.id, amount);
 
         return msg.channel.send({
             embeds: [ui("TRANSFER", `💸 <@${id}> → <@${target.id}> +${amount}`)]
         });
     }
 
-    // ================= LEADERBOARD =================
+    // ================= TOP =================
     if (cmd === ".top") {
-        let rows = db.prepare(`
-            SELECT user_id, balance 
-            FROM users 
-            ORDER BY balance DESC 
-            LIMIT 10
-        `).all();
+        let sorted = Object.entries(balance)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10);
 
-        let text = rows.map((r, i) =>
-            `**${i + 1}.** <@${r.user_id}> — 💰 ${r.balance}`
-        ).join("\n");
+        let text = sorted.length
+            ? sorted.map((x, i) => `**${i+1}.** <@${x[0]}> — 💰 ${x[1]}`).join("\n")
+            : "Chưa có dữ liệu";
 
         return msg.channel.send({
             embeds: [ui("LEADERBOARD", text)]
         });
     }
 
-    // ================= MINT (ADMIN ONLY) =================
-    if (cmd === ".mint") {
-        if (!isAdmin(msg.member))
-            return msg.reply("❌ Chỉ admin được dùng lệnh này");
-
-        let target = msg.mentions.users.first();
-        let amount = parseInt(args[2]);
-
-        if (!target || !amount)
-            return msg.reply("❌ .mint @user số tiền");
-
-        addMoney(target.id, amount);
-
-        return msg.channel.send({
-            embeds: [ui("MINT SYSTEM", `🏦 Admin cấp +${amount} coin cho <@${target.id}>`)]
-        });
-    }
-
     // ================= FLIP 50/50 =================
     if (cmd === ".flip") {
         let bet = parseInt(args[1]);
-        let u = getUser(id);
-
-        if (bet > u.balance) return msg.reply("❌ Không đủ coin");
+        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
         let win = Math.random() < 0.5;
 
-        if (win) {
-            addMoney(id, bet); // x2
-            msg.channel.send({ embeds: [ui("FLIP", `🪙 WIN x2 (+${bet})`)] });
-        } else {
-            addMoney(id, -bet); // ❗ mất toàn bộ cược
-            msg.channel.send({ embeds: [ui("FLIP", `💀 LOSE (-${bet})`)] });
-        }
+        add(id, win ? bet : -bet);
+
+        return msg.channel.send({
+            embeds: [ui("FLIP", win ? "🪙 WIN x2" : "💀 LOSE")]
+        });
     }
 
     // ================= SLOT =================
     if (cmd === ".slot") {
         let bet = parseInt(args[1]);
-        let u = getUser(id);
-if (bet > u.balance) return msg.reply("❌ Không đủ coin");
+        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
         let s = ["🍒","🍋","💎","7️⃣"];
         let a = s[Math.floor(Math.random()*4)];
@@ -186,80 +133,52 @@ if (bet > u.balance) return msg.reply("❌ Không đủ coin");
         let c = s[Math.floor(Math.random()*4)];
 
         let win =
-            (a === b && b === c) ? bet * 5 :
-            (a === b || b === c) ? bet * 2 :
-            -bet; // ❗ thua mất hết
+            (a===b && b===c) ? bet*5 :
+            (a===b || b===c) ? bet*2 :
+            -bet;
 
-        addMoney(id, win);
+        add(id, win);
 
         return msg.channel.send({
-            embeds: [ui("SLOT", `${a} | ${b} | ${c}\n💰 ${win > 0 ? "+" : ""}${win}`)]
+            embeds: [ui("SLOT", `${a} | ${b} | ${c}\n💰 ${win}`)]
         });
     }
 
     // ================= DICE =================
     if (cmd === ".dice") {
         let bet = parseInt(args[1]);
-        let u = getUser(id);
+        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
-        if (bet > u.balance) return msg.reply("❌ Không đủ coin");
+        let win = Math.random() < 0.5 ? bet : -bet;
 
-        let win = Math.random() < 0.5 ? bet : -bet; // thua mất hết
-
-        addMoney(id, win);
+        add(id, win);
 
         return msg.channel.send({
-            embeds: [ui("DICE", `🎲 ${win > 0 ? "WIN x2" : "LOSE"}\n💰 ${win}`)]
+            embeds: [ui("DICE", win > 0 ? "WIN x2" : "LOSE")]
         });
     }
 
     // ================= TRIPLE =================
     if (cmd === ".triple") {
         let bet = parseInt(args[1]);
-        let u = getUser(id);
-
-        if (bet > u.balance) return msg.reply("❌ Không đủ coin");
+        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
 
         let r = Math.random();
 
         if (r < 0.35) {
-            addMoney(id, bet);
+            add(id, bet);
             return msg.channel.send({ embeds: [ui("TRIPLE", "🟥 WIN x2")] });
         }
         else if (r < 0.70) {
-            addMoney(id, bet);
+            add(id, bet);
             return msg.channel.send({ embeds: [ui("TRIPLE", "⬛ WIN x2")] });
         }
         else {
-            addMoney(id, -bet); // ❗ mất toàn bộ
-            return msg.channel.send({ embeds: [ui("TRIPLE", `⭐ LOSE (-${bet})`)] });
+            add(id, -bet);
+            return msg.channel.send({ embeds: [ui("TRIPLE", "💀 LOSE")] });
         }
     }
 });
-if (cmd === ".help") {
-    return msg.channel.send({
-        embeds: [
-            ui(
-                "MENU",
-                `
-💰 KINH TẾ
-.bal
-.daily
-.pay @user tiền
 
-🎲 MINI GAME
-.flip tiền
-.slot tiền
-.dice tiền
-.triple tiền
-
-🏆 KHÁC
-.top
-.help
-`
-            )
-        ]
-    });
-}
 // ================= LOGIN =================
 client.login(process.env.TOKEN);
