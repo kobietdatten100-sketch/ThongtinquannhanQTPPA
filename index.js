@@ -179,8 +179,7 @@ client.on("messageCreate", async (msg) => {
     if (cmd === ".slot") {
         let bet = parseInt(args[1]);
         let u = getUser(id);
-
-        if (bet > u.balance) return msg.reply("❌ Không đủ coin");
+if (bet > u.balance) return msg.reply("❌ Không đủ coin");
 
         let s = ["🍒","🍋","💎","7️⃣"];
         let a = s[Math.floor(Math.random()*4)];
@@ -238,6 +237,30 @@ client.on("messageCreate", async (msg) => {
         }
     }
 });
+if (cmd === ".help") {
+    return msg.channel.send({
+        embeds: [
+            ui(
+                "MENU",
+                `
+💰 KINH TẾ
+.bal
+.daily
+.pay @user tiền
 
+🎲 MINI GAME
+.flip tiền
+.slot tiền
+.dice tiền
+.triple tiền
+
+🏆 KHÁC
+.top
+.help
+`
+            )
+        ]
+    });
+}
 // ================= LOGIN =================
 client.login(process.env.TOKEN);
