@@ -8,7 +8,42 @@ const client = new Client({
         GatewayIntentBits.MessageContent
     ]
 });
+const fs = require("fs");
 
+let data = {};
+
+if (fs.existsSync("./data.json")) {
+    data = JSON.parse(fs.readFileSync("./data.json"));
+}
+
+function saveData() {
+    fs.writeFileSync("./data.json", JSON.stringify(data, null, 2));
+}
+
+function getUser(id) {
+    if (!data[id]) {
+        data[id] = {
+            balance: 1000,
+            last_daily: 0
+        };
+        saveData();
+    }
+
+    return data[id];
+}
+
+function addMoney(id, amount) {
+    const user = getUser(id);
+
+    user.balance += amount;
+
+    if (user.balance < 0)
+        user.balance = 0;
+
+    saveData();
+
+    return user.balance;
+}
 const db = new Database("casino.db");
 
 // ================= DB =================
@@ -18,32 +53,6 @@ CREATE TABLE IF NOT EXISTS users (
     balance INTEGER DEFAULT 1000,
     last_daily INTEGER DEFAULT 0
 )
-`).run();
-
-// ================= CORE =================
-function getUser(id) {
-    let user = db.prepare("SELECT * FROM users WHERE user_id=?").get(id);
-
-    if (!user) {
-        db.prepare("INSERT INTO users (user_id, balance, last_daily) VALUES (?, 1000, 0)")
-            .run(id);
-        user = { user_id: id, balance: 1000, last_daily: 0 };
-    }
-
-    return user;
-}
-
-function setBalance(id, amount) {
-    db.prepare("UPDATE users SET balance=? WHERE user_id=?").run(amount, id);
-}
-
-function addMoney(id, amount) {
-    let u = getUser(id);
-    let newBal = u.balance + amount;
-    if (newBal < 0) newBal = 0;
-    setBalance(id, newBal);
-    return newBal;
-}
 
 // ================= ADMIN CHECK =================
 function isAdmin(member) {
