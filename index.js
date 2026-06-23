@@ -1,253 +1,332 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+import discord
+from discord.ext import commands
+import json
+import os
+import random
+import time
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
+TOKEN = "YOUR_BOT_TOKEN"
+PREFIX = "."
 
-// ================= MONEY SYSTEM =================
-let money = {};
-let cooldown = {};
+intents = discord.Intents.default()
+intents.message_content = True
 
-const START_COINS = 1000;
-const COOLDOWN_TIME = 2000;
+bot = commands.Bot(command_prefix=PREFIX, intents=intents, help_command=None)
 
-// tạo ví
-function get(id) {
-    if (!money[id]) money[id] = START_COINS;
-    return money[id];
-}
+DATA_FILE = "users.json"
 
-// cộng/trừ tiền
-function add(id, amt) {
-    if (!money[id]) money[id] = START_COINS;
-    money[id] += amt;
-    if (money[id] < 0) money[id] = 0;
-    return money[id];
-}
+# ======================
+# DATABASE JSON
+# ======================
 
-// cooldown
-function canUse(id, cmd) {
-    let key = id + cmd;
-    let now = Date.now();
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {}
 
-    if (cooldown[key] && now - cooldown[key] < COOLDOWN_TIME) {
-        return false;
-    }
+    with open(DATA_FILE, "r", encoding="utf8") as f:
+        return json.load(f)
 
-    cooldown[key] = now;
-    return true;
-}
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf8") as f:
+        json.dump(data, f, indent=4)
 
-// ================= UI =================
-function ui(title, desc) {
-    return new EmbedBuilder()
-        .setTitle("🎰 CASINO SYSTEM | " + title)
-        .setDescription(desc)
-        .setColor(0x00FFD5)
-        .setFooter({ text: "💎 Virtual Coin System" });
-}
+def get_user(user_id):
+    data = load_data()
 
-function wait(ms) {
-    return new Promise(res => setTimeout(res, ms));
-}
+    uid = str(user_id)
 
-// ================= BOT =================
-client.on("ready", () => {
-    console.log("🎰 Casino Bot Online");
-});
-
-client.on("messageCreate", async (msg) => {
-    if (msg.author.bot) return;
-
-    const args = msg.content.split(" ");
-    const cmd = args[0];
-    const id = msg.author.id;
-
-    // ================= HELP =================
-    if (cmd === ".help") {
-        return msg.channel.send({
-            embeds: [
-                ui("HELP MENU",
-`💰 ECONOMY
-.bal → xem tiền
-.daily → nhận 500 coin (3h)
-.pay @user amount
-
-🎮 MINI GAMES
-.flip amount → 50/50 x2
-.slot amount → slot x2/x5
-.dice amount → xúc xắc
-.roulette amount → x3 hoặc mất
-.highlow amount → đoán số
-
-🏆 RANK
-.top → bảng xếp hạng
-
-⏳ SYSTEM
-Cooldown: 2 giây
-Thua = mất tiền cược`)
-            ]
-        });
-    }
-
-    // ================= BAL =================
-    if (cmd === ".bal") {
-        return msg.channel.send({
-            embeds: [ui("BALANCE", `💰 Bạn có: ${get(id)} coin`)]
-        });
-    }
-
-    // ================= DAILY =================
-    if (cmd === ".daily") {
-        let now = Date.now();
-
-        if (cooldown["daily_" + id] && now - cooldown["daily_" + id] < 3 * 60 * 60 * 1000) {
-            let left = Math.ceil((3 * 60 * 60 * 1000 - (now - cooldown["daily_" + id])) / 60000);
-            return msg.reply("⏳ Chờ " + left + " phút");
+    if uid not in data:
+        data[uid] = {
+            "pscoin": 0,
+            "wins": 0,
+            "losses": 0,
+            "daily": 0
         }
+        save_data(data)
 
-        add(id, 500);
-        cooldown["daily_" + id] = now;
+    return data
 
-        return msg.channel.send({
-            embeds: [ui("DAILY", "🎁 +500 coin")]
-        });
-    }
+# ======================
+# HELP
+# ======================
 
-    // ================= PAY =================
-    if (cmd === ".pay") {
-        let target = msg.mentions.users.first();
-        let amount = parseInt(args[2]);
+@bot.command()
+async def help(ctx):
 
-        if (!target || !amount) return msg.reply("❌ .pay @user số tiền");
-        if (get(id) < amount) return msg.reply("❌ Không đủ coin");
+    embed = discord.Embed(
+        title="📖 HƯỚNG DẪN SỬ DỤNG BOT",
+        color=0x00BFFF
+    )
 
-        add(id, -amount);
-        add(target.id, amount);
+    embed.add_field(
+        name="🎮 MINI GAME",
+        value=
+        "✊ `.kbb keo|bua|bao`\n"
+        "🎲 `.dice`\n"
+        "🪙 `.coinflip ngua|sap`\n"
+        "🔢 `.guess <1-10>`",
+        inline=False
+    )
 
-        return msg.channel.send({
-            embeds: [ui("TRANSFER", `💸 <@${id}> → <@${target.id}> +${amount}`)]
-        });
-    }
+    embed.add_field(
+        name="⚙️ HỆ THỐNG",
+        value=
+        "💰 `.check [@user]`\n"
+        "🏆 `.top`\n"
+        "🎁 `.dl`\n"
+        "💸 `.givepscoin @user amount`\n"
+        "👤 `.profile`",
+        inline=False
+    )
 
-    // ================= TOP =================
-    if (cmd === ".top") {
-        let sorted = Object.entries(money)
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 10);
+    await ctx.send(embed=embed)
 
-        let text = sorted.length
-            ? sorted.map((x, i) => `**${i+1}.** <@${x[0]}> — 💰 ${x[1]}`).join("\n")
-            : "Chưa có dữ liệu";
+# ======================
+# CHECK
+# ======================
 
-        return msg.channel.send({
-            embeds: [ui("LEADERBOARD", text)]
-        });
-    }
+@bot.command()
+async def check(ctx, member: discord.Member = None):
 
-    // ================= FLIP =================
-    if (cmd === ".flip") {
-        let bet = parseInt(args[1]);
-        if (!canUse(id, ".flip")) return msg.reply("⏳ Cooldown");
-        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+    member = member or ctx.author
 
-        let win = Math.random() < 0.5;
+    data = get_user(member.id)
 
-        add(id, win ? bet : -bet);
+    uid = str(member.id)
 
-        return msg.channel.send({
-            embeds: [ui("FLIP", win ? "🪙 WIN x2" : "💀 LOSE")]
-        });
-    }
+    embed = discord.Embed(
+        title="💰 THÔNG TIN TÀI KHOẢN",
+        color=0x00ff00
+    )
 
-    // ================= SLOT =================
-    if (cmd === ".slot") {
-        let bet = parseInt(args[1]);
-        if (!canUse(id, ".slot")) return msg.reply("⏳ Cooldown");
-        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+    embed.add_field(name="Tên", value=member.name)
+    embed.add_field(name="PSCoin", value=f"{data[uid]['pscoin']:,}")
 
-        let m = await msg.channel.send("🎰 Đang quay...");
-        await wait(2000);
+    await ctx.send(embed=embed)
 
-        let s = ["🍒","🍋","💎","7️⃣"];
-        let a = s[Math.floor(Math.random()*4)];
-        let b = s[Math.floor(Math.random()*4)];
-        let c = s[Math.floor(Math.random()*4)];
+# ======================
+# PROFILE
+# ======================
 
-        let win =
-            (a===b && b===c) ? bet*5 :
-            (a===b || b===c) ? bet*2 :
-            -bet;
+@bot.command()
+async def profile(ctx):
 
-        add(id, win);
+    data = get_user(ctx.author.id)
 
-        return m.edit({
-            embeds: [ui("SLOT", `${a} | ${b} | ${c}\n💰 ${win}`)]
-        });
-    }
+    uid = str(ctx.author.id)
 
-    // ================= DICE =================
-    if (cmd === ".dice") {
-        let bet = parseInt(args[1]);
-        if (!canUse(id, ".dice")) return msg.reply("⏳ Cooldown");
-        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+    embed = discord.Embed(
+        title=f"👤 {ctx.author.name}",
+        color=0xFFD700
+    )
 
-        let m = await msg.channel.send("🎲 rolling...");
-        await wait(2000);
+    embed.add_field(
+        name="PSCoin",
+        value=f"{data[uid]['pscoin']:,}"
+    )
 
-        let roll = Math.floor(Math.random()*6)+1;
-        let win = roll >= 4 ? bet : -bet;
+    embed.add_field(
+        name="Thắng",
+        value=data[uid]["wins"]
+    )
 
-        add(id, win);
+    embed.add_field(
+        name="Thua",
+        value=data[uid]["losses"]
+    )
 
-        return m.edit({
-            embeds: [ui("DICE", `🎲 ${roll}\n💰 ${win}`)]
-        });
-    }
+    await ctx.send(embed=embed)
 
-    // ================= ROULETTE =================
-    if (cmd === ".roulette") {
-        let bet = parseInt(args[1]);
-        if (!canUse(id, ".roulette")) return msg.reply("⏳ Cooldown");
-        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+# ======================
+# DAILY
+# ======================
 
-        let m = await msg.channel.send("🎡 spinning...");
-        await wait(2000);
+@bot.command()
+async def dl(ctx):
 
-        let r = Math.random();
+    data = get_user(ctx.author.id)
 
-        if (r < 0.33) {
-            add(id, bet*3);
-            return m.edit({ embeds: [ui("ROULETTE", "⭐ WIN x3")] });
-        } else {
-            add(id, -bet);
-            return m.edit({ embeds: [ui("ROULETTE", "💀 LOSE")] });
-        }
-    }
+    uid = str(ctx.author.id)
 
-    // ================= HIGHLOW =================
-    if (cmd === ".highlow") {
-        let bet = parseInt(args[1]);
-        if (!canUse(id, ".highlow")) return msg.reply("⏳ Cooldown");
-        if (get(id) < bet) return msg.reply("❌ Không đủ coin");
+    now = int(time.time())
 
-        let m = await msg.channel.send("🎯 guessing...");
-        await wait(2000);
+    cooldown = 10800
 
-        let num = Math.floor(Math.random()*10);
-        let win = num >= 5 ? bet : -bet;
+    if now - data[uid]["daily"] < cooldown:
 
-        add(id, win);
+        left = cooldown - (now - data[uid]["daily"])
 
-        return m.edit({
-            embeds: [ui("HIGH/LOW", `🎯 ${num}\n💰 ${win}`)]
-        });
-    }
-});
+        mins = left // 60
 
-// ================= LOGIN =================
+        return await ctx.send(
+            f"⏳ Chờ {mins} phút nữa."
+        )
+
+    reward = 500000
+
+    data[uid]["pscoin"] += reward
+    data[uid]["daily"] = now
+
+    save_data(data)
+
+    embed = discord.Embed(
+        title="🎁 NHẬN THƯỞNG THÀNH CÔNG",
+        description=f"+{reward:,} PSCOIN",
+        color=0x00ff00
+    )
+
+    await ctx.send(embed=embed)
+
+# ======================
+# GIVE
+# ======================
+
+@bot.command()
+async def givepscoin(ctx, member: discord.Member, amount: int):
+
+    if amount <= 0:
+        return
+
+    data = get_user(ctx.author.id)
+
+    uid = str(ctx.author.id)
+
+    get_user(member.id)
+
+    if data[uid]["pscoin"] < amount:
+        return await ctx.send("❌ Không đủ coin.")
+
+    data[str(ctx.author.id)]["pscoin"] -= amount
+    data[str(member.id)]["pscoin"] += amount
+
+    save_data(data)
+
+    await ctx.send(
+        f"💸 Đã chuyển {amount:,} PSCoin cho {member.mention}"
+    )
+
+# ======================
+# TOP
+# ======================
+
+@bot.command()
+async def top(ctx):
+
+    data = load_data()
+
+    ranking = sorted(
+        data.items(),
+        key=lambda x: x[1]["pscoin"],
+        reverse=True
+    )
+
+    embed = discord.Embed(
+        title="🏆 BẢNG XẾP HẠNG ĐẠI GIA",
+        color=0xFFD700
+    )
+
+    for i, (uid, info) in enumerate(ranking[:10], start=1):
+
+        try:
+            user = await bot.fetch_user(int(uid))
+            name = user.name
+        except:
+            name = uid
+
+        embed.add_field(
+            name=f"#{i}",
+            value=f"{name} - {info['pscoin']:,} PSCoin",
+            inline=False
+        )
+
+    await ctx.send(embed=embed)
+
+# ======================
+# KEO BUA BAO
+# ======================
+
+@bot.command()
+async def kbb(ctx, choice):
+
+    choice = choice.lower()
+
+    choices = ["keo", "bua", "bao"]
+
+    if choice not in choices:
+        return
+
+    bot_choice = random.choice(choices)
+
+    result = "Hòa"
+
+    if (
+        (choice == "keo" and bot_choice == "bao")
+        or
+        (choice == "bao" and bot_choice == "bua")
+        or
+        (choice == "bua" and bot_choice == "keo")
+    ):
+        result = "Bạn thắng"
+
+    elif choice != bot_choice:
+        result = "Bạn thua"
+
+    await ctx.send(
+        f"Bạn: {choice}\nBot: {bot_choice}\n\n{result}"
+    )
+
+# ======================
+# DICE
+# ======================
+
+@bot.command()
+async def dice(ctx):
+
+    value = random.randint(1, 6)
+
+    await ctx.send(f"🎲 Kết quả: **{value}**")
+
+# ======================
+# COINFLIP
+# ======================
+
+@bot.command()
+async def coinflip(ctx, choice):
+
+    result = random.choice(["ngua", "sap"])
+
+    if choice.lower() == result:
+        msg = "🎉 Đoán đúng"
+    else:
+        msg = "😢 Đoán sai"
+
+    await ctx.send(
+        f"🪙 {result}\n{msg}"
+    )
+
+# ======================
+# GUESS
+# ======================
+
+@bot.command()
+async def guess(ctx, number: int):
+
+    if number < 1 or number > 10:
+        return
+
+    value = random.randint(1, 10)
+
+    if value == number:
+        msg = "🎉 Chính xác!"
+    else:
+        msg = f"❌ Sai rồi. Số là {value}"
+
+    await ctx.send(msg)
+
+# ======================
+
+@bot.event
+async def on_ready():
+    print(f"Online: {bot.user}")
+
 client.login(process.env.TOKEN);
