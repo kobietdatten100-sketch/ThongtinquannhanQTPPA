@@ -307,7 +307,8 @@ async def lichsu(
         embed=embed
     )
 
-# =========================
-# KHỞI ĐỘNG
-# =========================
-client.login(process.env.TOKEN);
+import os
+
+TOKEN = os.getenv("TOKEN")
+
+bot.run(TOKEN)
